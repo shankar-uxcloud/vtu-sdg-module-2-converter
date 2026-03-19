@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VTU SDG Smart Answer Converter — Offline</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --surface3: #21262d;
+  --border: #30363d; --border2: #3d444d; --text: #e6edf3; --text2: #8b949e;
+  --text3: #6e7681; --blue: #2f81f7; --green: #3fb950; --green-dim: #1a3d23;
+  --amber: #d29922; --amber-dim: #3a2a00; --red: #f85149; --purple: #bc8cff;
+  --accent: #f0883e; --accent2: #58a6ff; --glow: rgba(47,129,247,0.15);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:'Outfit',sans-serif; min-height:100vh; overflow-x:hidden; }
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image: linear-gradient(rgba(47,129,247,0.03) 1px,transparent 1px), linear-gradient(90deg,rgba(47,129,247,0.03) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+/* HEADER */
+.header { position:relative; padding:32px 24px 24px; text-align:center; border-bottom:1px solid var(--border); background:linear-gradient(180deg,rgba(47,129,247,0.06) 0%,transparent 100%); z-index:1; }
+.header-top { display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:12px; }
+.chip-label { background:var(--surface3); border:1px solid var(--border2); color:var(--text2); font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; padding:4px 10px; border-radius:20px; }
+.offline-badge { background:rgba(63,185,80,0.12); border:1px solid rgba(63,185,80,0.35); color:var(--green); font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; padding:4px 10px; border-radius:20px; }
+h1 { font-family:'Libre Baskerville',serif; font-size:clamp(22px,4vw,36px); font-weight:700; line-height:1.15; letter-spacing:-0.5px; }
+h1 em { font-style:italic; background:linear-gradient(135deg,var(--accent),#ffd700); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.tagline { margin-top:8px; font-size:13px; color:var(--text3); font-weight:300; }
+.mode-tabs { display:flex; max-width:720px; margin:20px auto 0; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:4px; gap:0; }
+.mode-tab { flex:1; padding:9px 12px; border-radius:6px; border:none; cursor:pointer; font-family:'Outfit',sans-serif; font-size:13px; font-weight:500; color:var(--text2); background:transparent; transition:all 0.2s; display:flex; align-items:center; justify-content:center; gap:6px; }
+.mode-tab:hover { color:var(--text); }
+.mode-tab.active { background:var(--surface3); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,0.4); }
+.mode-tab.active[data-mode="browse"] { color:var(--accent); }
+.mode-tab.active[data-mode="search"] { color:var(--accent2); }
+.mode-tab.active[data-mode="compress"] { color:var(--purple); }
+
+/* MAIN */
+.main { max-width:1100px; margin:0 auto; padding:24px 20px 60px; position:relative; z-index:1; }
+.panel { display:none; flex-direction:column; gap:20px; }
+.panel.active { display:flex; }
+.split { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+@media(max-width:700px) { .split { grid-template-columns:1fr; } }
+
+/* BOX */
+.box { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+.box-header { padding:10px 16px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.bhl { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text2); flex:1; }
+.bhb { font-family:'JetBrains Mono',monospace; font-size:9px; padding:2px 8px; border-radius:10px; letter-spacing:1px; }
+.bi { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(210,153,34,0.3); }
+.bo { background:var(--green-dim); color:var(--green); border:1px solid rgba(63,185,80,0.3); }
+.bm { background:rgba(47,129,247,0.1); color:var(--blue); border:1px solid rgba(47,129,247,0.3); }
+
+/* QUESTION LIST */
+.q-list { display:flex; flex-direction:column; gap:6px; padding:16px; }
+.q-item { padding:12px 16px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; cursor:pointer; transition:all 0.15s; }
+.q-item:hover { border-color:var(--accent); background:rgba(240,136,62,0.06); }
+.q-item.active { border-color:var(--accent); background:rgba(240,136,62,0.1); }
+.q-num { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--accent); font-weight:600; margin-bottom:4px; }
+.q-text { font-size:13px; color:var(--text2); line-height:1.5; }
+.q-item.active .q-text { color:var(--text); }
+
+/* SEARCH / TEXTAREA */
+textarea { flex:1; min-height:200px; padding:16px; background:transparent; border:none; outline:none; font-family:'Outfit',sans-serif; font-size:13.5px; line-height:1.7; color:var(--text); resize:vertical; }
+textarea::placeholder { color:var(--text3); font-style:italic; }
+.search-input { width:100%; padding:12px 16px; background:var(--surface2); border:none; border-bottom:1px solid var(--border); outline:none; font-family:'Outfit',sans-serif; font-size:14px; color:var(--text); }
+.search-input::placeholder { color:var(--text3); }
+.search-results { flex:1; display:flex; flex-direction:column; gap:0; overflow-y:auto; max-height:400px; }
+.sr-item { padding:12px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.12s; }
+.sr-item:hover { background:rgba(47,129,247,0.06); }
+.sr-score { font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--text3); float:right; }
+.sr-text { font-size:13px; color:var(--text2); line-height:1.5; }
+
+/* TOOLBAR */
+.toolbar { padding:12px 16px; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--surface2); }
+
+/* BUTTONS */
+.btn { padding:9px 18px; border-radius:6px; border:none; cursor:pointer; font-family:'Outfit',sans-serif; font-size:13px; font-weight:600; transition:all 0.18s; display:inline-flex; align-items:center; gap:7px; }
+.btn:disabled { opacity:0.4; cursor:not-allowed; }
+.btn:active:not(:disabled) { transform:scale(0.97); }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover:not(:disabled) { filter:brightness(1.12); transform:translateY(-1px); }
+.btn-ghost { background:var(--surface3); border:1px solid var(--border2); color:var(--text2); }
+.btn-ghost:hover:not(:disabled) { color:var(--text); border-color:var(--text3); }
+.btn-copy { background:var(--green-dim); border:1px solid rgba(63,185,80,0.3); color:var(--green); }
+.btn-copy:hover:not(:disabled) { background:rgba(63,185,80,0.2); }
+.btn-sm { padding:6px 12px; font-size:12px; border-radius:5px; }
+
+/* ANSWER SHEET */
+.answer-wrap { display:none; flex-direction:column; }
+.answer-wrap.show { display:flex; animation:fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+.answer-sheet { background:#fefdf8; position:relative; overflow:hidden; }
+.answer-sheet::before { content:''; position:absolute; left:52px; top:0; bottom:0; width:2px; background:rgba(248,81,73,0.25); z-index:1; }
+.answer-sheet::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(transparent,transparent 29px,rgba(200,210,235,0.5) 29px,rgba(200,210,235,0.5) 30px); pointer-events:none; z-index:0; }
+.answer-inner { position:relative; z-index:2; padding:20px 28px 24px 72px; color:#1a1410; font-family:'Libre Baskerville',serif; font-size:13.5px; line-height:2.07; }
+.answer-inner .a-section { font-family:'Outfit',sans-serif; font-weight:700; font-size:13.5px; color:#1b5e20; margin-top:4px; text-decoration:underline; text-underline-offset:3px; }
+.answer-inner .a-point-head { font-family:'Outfit',sans-serif; font-weight:600; font-size:13px; color:#1a237e; }
+.answer-inner .a-body { margin:0; line-height:2.07; }
+.answer-inner .a-kw { font-family:'Outfit',sans-serif; font-weight:700; color:#c62828; border-bottom:1px dotted #c62828; }
+.answer-inner .a-sdg { font-family:'Outfit',sans-serif; font-weight:700; color:#1565c0; }
+.answer-inner .a-example { margin:4px 0; padding:4px 12px; border-left:3px solid #f57c00; background:rgba(255,152,0,0.06); font-style:italic; font-size:13px; color:#4a2c00; }
+.answer-inner .a-diagram { font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.65; background:rgba(100,120,160,0.07); border:1px dashed #bbc; padding:10px 14px; margin:6px 0; white-space:pre; overflow-x:auto; color:#223; }
+.answer-inner .a-conclusion { border-top:1.5px solid #aab; margin-top:6px; padding-top:4px; }
+.answer-inner ul { list-style:none; padding:0; }
+.answer-inner ul li { position:relative; padding-left:18px; line-height:2.07; }
+.answer-inner ul li::before { content:'→'; position:absolute; left:0; color:#e65100; font-family:'Outfit',sans-serif; font-size:12px; }
+.page-est { padding:8px 16px; background:var(--surface3); border-top:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text3); }
+.page-ok { color:var(--green); } .page-warn { color:var(--amber); }
+
+/* PLACEHOLDER */
+.placeholder { flex:1; display:flex; align-items:center; justify-content:center; padding:48px; text-align:center; color:var(--text3); }
+
+/* TIPS */
+.tips-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; }
+.tip { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font-size:12.5px; color:var(--text2); line-height:1.55; }
+.tip-label { font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--text3); margin-bottom:5px; }
+
+/* ERROR */
+.error-banner { background:rgba(248,81,73,0.08); border:1px solid rgba(248,81,73,0.3); border-radius:6px; padding:12px 16px; color:var(--red); font-size:13px; display:none; }
+.error-banner.show { display:block; }
+
+@media print {
+  body { background:white; } body::before,.header,.mode-tabs,.toolbar,.q-list,.tips-grid,.box-header,.page-est { display:none !important; }
+  .answer-inner { padding:20px; color:#000; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="chip-label">VTU · Belagavi</div>
+    <div class="offline-badge">✓ 100% Offline — No API Needed</div>
+    <div class="chip-label">SDG Module-2</div>
+  </div>
+  <h1>Smart Answer <em>Converter</em></h1>
+  <p class="tagline">All 10 Module-2 answers built-in · Works offline · Open directly in browser — no setup needed</p>
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="browse" onclick="switchMode('browse')">📚 Browse All Answers</button>
+    <button class="mode-tab" data-mode="search" onclick="switchMode('search')">🔍 Search by Question</button>
+    <button class="mode-tab" data-mode="compress" onclick="switchMode('compress')">⚡ Compress My Notes</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ══ BROWSE MODE ══ -->
+  <div class="panel active" id="panel-browse">
+    <div class="split">
+      <div class="box">
+        <div class="box-header">
+          <span class="bhl">📋 All Module-2 Questions</span>
+          <span class="bhb bi">10 ANSWERS</span>
+        </div>
+        <div class="q-list" id="qList"></div>
+      </div>
+      <div class="box">
+        <div class="box-header">
+          <span class="bhl">📄 VTU Exam-Ready Answer</span>
+          <span class="bhb bo">READY TO WRITE</span>
+          <span class="bhb bm">10 MARKS</span>
+        </div>
+        <div class="answer-wrap" id="browseAnswerWrap">
+          <div class="answer-sheet"><div class="answer-inner" id="browseAnswerInner"></div></div>
+          <div class="page-est" id="browsePageEst"></div>
+          <div class="toolbar">
+            <button class="btn btn-copy btn-sm" onclick="copyEl('browseAnswerInner')">⎘ Copy Text</button>
+            <button class="btn btn-ghost btn-sm" onclick="window.print()">⎙ Print</button>
+          </div>
+        </div>
+        <div class="placeholder" id="browsePlaceholder">
+          <div><div style="font-size:40px;margin-bottom:12px">📝</div>
+          <div style="font-size:14px;font-weight:500;color:var(--text2);margin-bottom:6px">Select a question on the left</div>
+          <div style="font-size:12px">Its perfect VTU answer will appear here instantly</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tips-grid">
+      <div class="tip"><div class="tip-label">✈️ Works Offline</div>All answers are stored inside this HTML file. No internet or API needed.</div>
+      <div class="tip"><div class="tip-label">📏 1 Page Each</div>Every answer fits ~1 notebook page. Bold red keywords catch the evaluator's eye.</div>
+      <div class="tip"><div class="tip-label">🇮🇳 India Examples</div>All answers use Smart Cities Mission, AMRUT, Delhi Metro, PMAY — VTU favourite examples.</div>
+      <div class="tip"><div class="tip-label">🎯 VTU Format</div>Definition → Points → Example → Conclusion — exactly what scores full marks.</div>
+    </div>
+  </div>
+
+  <!-- ══ SEARCH MODE ══ -->
+  <div class="panel" id="panel-search">
+    <div class="split">
+      <div class="box">
+        <div class="box-header"><span class="bhl">🔍 Type Your Question</span><span class="bhb bi">KEYWORD MATCH</span></div>
+        <input class="search-input" id="searchInput" placeholder="Type any part of your exam question… e.g. 'smart infrastructure' or 'mega cities'" oninput="doSearch()"/>
+        <div class="search-results" id="searchResults">
+          <div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;">Start typing to find matching answers…</div>
+        </div>
+      </div>
+      <div class="box">
+        <div class="box-header"><span class="bhl">📄 Matched Answer</span><span class="bhb bo">EXAM READY</span><span class="bhb bm">10 MARKS</span></div>
+        <div class="answer-wrap" id="searchAnswerWrap">
+          <div class="answer-sheet"><div class="answer-inner" id="searchAnswerInner"></div></div>
+          <div class="page-est" id="searchPageEst"></div>
+          <div class="toolbar">
+            <button class="btn btn-copy btn-sm" onclick="copyEl('searchAnswerInner')">⎘ Copy</button>
+            <button class="btn btn-ghost btn-sm" onclick="window.print()">⎙ Print</button>
+          </div>
+        </div>
+        <div class="placeholder" id="searchPlaceholder">
+          <div><div style="font-size:36px;margin-bottom:10px">🔍</div>
+          <div style="font-size:13px;color:var(--text2)">Search results will appear here</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ COMPRESS MODE ══ -->
+  <div class="panel" id="panel-compress">
+    <div class="split">
+      <div class="box">
+        <div class="box-header"><span class="bhl">📥 Paste Your Long Notes / Answer</span><span class="bhb bi">INPUT</span></div>
+        <textarea id="compressInput" placeholder="Paste your long answer, textbook notes, or rough content here…&#10;&#10;This tool will:&#10;• Extract only key points&#10;• Remove repetition and filler&#10;• Format in VTU structure&#10;• Make it notebook-page length&#10;&#10;Works 100% offline — no AI needed."></textarea>
+        <div class="toolbar">
+          <span id="compressWordCount" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">0 words</span>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('compressInput').value='';updateCWC()">✕ Clear</button>
+          <button class="btn btn-primary" onclick="doCompress()">⚡ Compress & Format</button>
+        </div>
+      </div>
+      <div class="box">
+        <div class="box-header"><span class="bhl">⚡ Compressed Exam Notes</span><span class="bhb bo">COMPRESSED</span></div>
+        <div class="answer-wrap" id="compressAnswerWrap">
+          <div class="answer-sheet"><div class="answer-inner" id="compressAnswerInner"></div></div>
+          <div class="page-est" id="compressPageEst"></div>
+          <div class="toolbar">
+            <button class="btn btn-copy btn-sm" onclick="copyEl('compressAnswerInner')">⎘ Copy</button>
+            <button class="btn btn-ghost btn-sm" onclick="window.print()">⎙ Print</button>
+          </div>
+        </div>
+        <div class="placeholder" id="compressPlaceholder">
+          <div><div style="font-size:36px;margin-bottom:10px">⚡</div>
+          <div style="font-size:13px;color:var(--text2)">Paste your notes on the left</div></div>
+        </div>
+        <div class="error-banner" id="errCompress"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  ALL 10 MODULE-2 ANSWERS — FULLY EMBEDDED
+//  Format: ## section, ### point, **kw**, [EXAMPLE], [DIAGRAM]
+// ══════════════════════════════════════════════════════
+const ANSWERS = [
+{
+  q: "Explain Patterns of Urbanization Around the World. Discuss challenges faced by Rapidly Urbanizing Cities.",
+  keywords: ["urbanization","pattern","rapidly urbanizing","challenges","rural","urban"],
+  a: `## DEFINITION
+**Urbanization** is the process of population shift from rural to urban areas, causing growth of cities, driven by industrialization, employment, and better living standards.
+
+## INTRODUCTION
+Over the past century, urbanization has accelerated globally. More than 55% of the world's population now lives in cities. Rapid, unplanned urbanization creates serious social, environmental, and infrastructure challenges — directly addressed by **SDG-11**.
+
+## PATTERNS OF URBANIZATION
+### 1. Rapid Urbanization — Developing Countries
+Fast, unplanned growth in countries like India, China, Nigeria. Large-scale rural migration, slum expansion, and infrastructure lag are key features.
+### 2. Planned Urbanization — Developed Countries
+Systematic, regulated growth in Japan, Germany, Singapore. Proper zoning, efficient public transport, and strong waste management systems.
+### 3. Growth of Mega Cities
+**Mega cities** are cities with population exceeding 10 million — Tokyo, Delhi, Shanghai. They are economic hubs but face severe environmental and infrastructure stress.
+### 4. Sub-urbanization
+Population moves outward from city centers to suburbs, creating satellite towns and urban sprawl.
+
+## CHALLENGES FACED
+### 5. Housing Shortage and Slums
+Rapid migration causes **informal settlements**, overcrowding, and poor sanitation. Links to **SDG-11.1** (safe housing for all).
+### 6. Traffic Congestion
+Increased vehicles cause jams, fuel wastage, and rising **air pollution** — affecting urban mobility (**SDG-11.2**).
+### 7. Environmental Pollution
+Industries and transport increase air, water, and solid waste pollution — impacting public health (**SDG-11.6**).
+### 8. Water and Resource Scarcity
+Urban expansion exceeds available water, electricity, and food supply, straining city systems.
+### 9. Infrastructure Pressure
+Roads, drainage, hospitals, schools become insufficient — leading to urban flooding and service failures.
+
+[EXAMPLE]
+Mumbai's Dharavi slum developed due to unplanned rural migration. India's **Smart Cities Mission** and **AMRUT** scheme address these challenges by upgrading infrastructure in 500+ cities.
+
+[DIAGRAM]
+Rural Areas → Migration → Rapid Urban Growth
+       ↓               ↓              ↓
+  Push Factors   Pull Factors   Challenges:
+  (poverty,      (jobs,         Slums, Traffic,
+   drought)       hospitals)    Pollution, Water
+
+## CONCLUSION
+**Urbanization** is inevitable, but must be managed through **sustainable planning**, smart infrastructure, and inclusive policies. Achieving **SDG-11** requires transforming rapidly growing cities into safe, resilient, and sustainable communities for all.`
+},
+{
+  q: "Define Sustainable City. Explain Environmental, Economic, and Social features with examples.",
+  keywords: ["sustainable city","environmental","economic","social","features","define"],
+  a: `## DEFINITION
+A **sustainable city** is an urban area that meets the present needs of its population without compromising the ability of future generations to meet their own needs, balancing **environmental protection**, **economic growth**, and **social equity**.
+
+## INTRODUCTION
+With over half the world living in cities, urban sustainability is critical. **SDG-11** — Sustainable Cities and Communities — calls for inclusive, safe, resilient, and sustainable urbanization. A sustainable city balances three core pillars.
+
+## THREE PILLARS OF A SUSTAINABLE CITY
+### 1. Environmental Features (SDG-11.6)
+- Use of **renewable energy** (solar, wind) on public buildings
+- **Efficient public transportation** (metro, electric buses) to cut emissions
+- **Green buildings** with energy-efficient design
+- **Rainwater harvesting** and water body conservation
+- Waste segregation, recycling, and zero-landfill goals
+
+### 2. Economic Features
+- Employment generation through **green industries** and clean tech
+- **Smart infrastructure** attracting domestic and foreign investment
+- Promotion of innovation, startups, and digital economies
+- **Resource-efficient** operations reducing production costs
+- Energy-efficient data centers and IT hubs for long-term growth
+
+### 3. Social Features (SDG-11.1)
+- **Affordable housing** for all income groups — reducing slum formation
+- Access to quality education, healthcare, and clean water
+- **Inclusive infrastructure** for elderly and differently-abled persons
+- Digital governance platforms for transparent service delivery
+- **Gender-safe** public spaces and transport systems
+
+[EXAMPLE]
+India's **Smart Cities Mission** (100 cities) and **PMAY** (Pradhan Mantri Awas Yojana) address all three pillars — PMAY provides affordable urban housing, Smart Cities invest in clean energy and digital governance, and **Delhi Metro** reduces air pollution while improving mobility.
+
+[DIAGRAM]
+        SUSTAINABLE CITY
+       /        |        \
+  Environment  Economy   Society
+  (Clean Air,  (Jobs,    (Housing,
+   Energy,     Growth,    Health,
+   Water)      Investment) Equity)
+
+## CONCLUSION
+A **sustainable city** integrates all three dimensions to create long-term livability. Cities that follow this model contribute to **SDG-11**, **SDG-7** (Clean Energy), **SDG-3** (Good Health), and **SDG-10** (Reduced Inequalities) simultaneously.`
+},
+{
+  q: "Analyze differences between Rapid and Planned Urbanization. How do these affect sustainability?",
+  keywords: ["rapid urbanization","planned urbanization","differences","sustainability","compare"],
+  a: `## DEFINITION
+**Rapid Urbanization** is fast, uncontrolled city growth where population increase outpaces infrastructure. **Planned Urbanization** is systematic, managed growth where infrastructure is developed ahead of or alongside population needs.
+
+## INTRODUCTION
+The pattern of urbanization determines whether cities become sustainable or unsustainable. **SDG-11** emphasizes the need for inclusive, planned urban growth. Understanding the key differences helps design better urban policies.
+
+## KEY DIFFERENCES
+### 1. Speed of Growth
+- **Rapid**: Very fast due to mass rural migration and industrial growth; no time for planning.
+- **Planned**: Gradual and controlled; future needs are assessed before development begins.
+
+### 2. Infrastructure
+- **Rapid**: Roads, housing, drainage are always insufficient; **informal settlements** and slums emerge.
+- **Planned**: Proper **zoning** of residential, commercial, industrial zones; efficient utilities.
+
+### 3. Environmental Impact
+- **Rapid**: High air, water, noise pollution; loss of **green spaces**; urban flooding from poor drainage.
+- **Planned**: Protected **green belts**, parks, sustainable water management; lower pollution levels.
+
+### 4. Social Conditions
+- **Rapid**: Housing shortage, crowded schools and hospitals, rising **inequality** and crime.
+- **Planned**: **Affordable housing**, better public services, improved quality of life for all citizens.
+
+### 5. Economic Impact
+- **Rapid**: Short-term economic growth but long-term costs from infrastructure repair, pollution cleanup.
+- **Planned**: Stable, long-term **economic growth** by attracting investment through quality infrastructure.
+
+### 6. Governance
+- **Rapid**: Weak local governance, corruption, poor enforcement of building codes.
+- **Planned**: Strong **urban local bodies**, master plans, zoning laws, and development authorities.
+
+[EXAMPLE]
+**Singapore** is a global model of planned urbanization — compact design, efficient MRT system, green buildings, and zero informal settlements. India's **AMRUT** (Atal Mission for Rejuvenation and Urban Transformation) is moving 500 cities toward planned development.
+
+## CONCLUSION
+**Rapid urbanization** destroys all three pillars of sustainability — environmental, economic, and social. **Planned urbanization** is essential for achieving **SDG-11** and ensuring cities remain livable, productive, and resilient for future generations.`
+},
+{
+  q: "Explain Smart Infrastructure. Discuss its role in achieving Sustainable Cities.",
+  keywords: ["smart infrastructure","IoT","sustainable cities","role","technology","sensors"],
+  a: `## DEFINITION
+**Smart Infrastructure** is the integration of advanced technologies — **IoT** (Internet of Things), **Artificial Intelligence (AI)**, sensors, data analytics, and automation — into physical urban systems to improve efficiency, sustainability, and quality of service in real time.
+
+## INTRODUCTION
+Traditional infrastructure operates with manual control and limited monitoring. Smart infrastructure transforms this by enabling cities to **monitor, manage, and optimize** resources continuously. It is the backbone of **SDG-11** — Sustainable Cities and Communities.
+
+## ROLE IN ACHIEVING SUSTAINABLE CITIES
+### 1. Smart Energy Management (SDG-7)
+**Smart grids** monitor electricity supply and demand in real time, integrating solar and wind sources. They reduce power loss, prevent blackouts, and cut **carbon emissions**.
+
+### 2. Smart Traffic Management (SDG-11.2)
+AI-based sensors and **adaptive traffic signals** reduce congestion by adjusting in real time. Reduces fuel use, travel time, and air pollution significantly.
+
+### 3. Smart Water Management (SDG-6)
+**IoT sensors** detect pipeline leaks, monitor reservoir levels, and track household usage. Smart meters reduce wastage and ensure sustainable water supply.
+
+### 4. Smart Waste Management (SDG-11.6)
+Sensors in bins notify authorities when they are full. **Optimized collection routes** reduce fuel consumption, operational costs, and urban pollution.
+
+### 5. Smart Street Lighting
+LED lights with motion sensors switch on only when needed, cutting electricity consumption by up to 50%.
+
+### 6. Urban Resilience (SDG-11.b)
+Real-time monitoring of floods, earthquakes, and emergencies allows **early warning systems** and faster emergency response, saving lives.
+
+### 7. E-Governance Integration
+Smart infrastructure connects with digital governance — enabling online service delivery, automated billing, and transparent administration.
+
+[EXAMPLE]
+Under India's **Smart Cities Mission**, Pune installed a smart traffic management system with AI cameras and sensors — reducing peak-hour congestion by 20%. Surat deployed **IoT-based water monitoring** eliminating manual meter reading across the city.
+
+[DIAGRAM]
+Sensors → IoT Network → Data Analytics (AI)
+                              ↓
+        Traffic  Water  Energy  Waste  Safety
+        Control  Mgmt   Grid    Bins   Alerts
+                              ↓
+                     SUSTAINABLE CITY
+
+## CONCLUSION
+**Smart Infrastructure** directly enables environmental protection, economic efficiency, and social equity — the three pillars of **SDG-11**. As cities grow, intelligent systems are no longer optional but essential for sustainable urban development.`
+},
+{
+  q: "Evaluate the role of ICT in development of Smart and Sustainable Cities.",
+  keywords: ["ICT","information communication technology","smart city","role","evaluate","digital"],
+  a: `## DEFINITION
+**ICT (Information and Communication Technology)** includes the Internet, **IoT**, cloud computing, **Artificial Intelligence**, big data analytics, and communication networks that form the digital backbone of smart cities.
+
+## INTRODUCTION
+ICT enables cities to collect real-time data, process it intelligently, and deliver services efficiently to citizens. It is the primary enabler of **smart urbanization** under **SDG-11**, transforming traditional cities into data-driven, responsive systems.
+
+## ROLE OF ICT IN SMART AND SUSTAINABLE CITIES
+### 1. Efficient Resource Management
+**Smart grids** use ICT to balance power supply and demand, integrate renewable energy, and reduce wastage — directly supporting **SDG-7** (Clean Energy).
+
+### 2. Smart Transportation (SDG-11.2)
+ICT-based traffic sensors, **GPS-based route optimization**, and adaptive signals reduce congestion, fuel use, and carbon emissions. Real-time bus/metro tracking improves public transport use.
+
+### 3. E-Governance and Transparency
+Online portals for bill payments, certificates, **public grievance redressal**, and tenders reduce corruption and increase citizen participation in governance.
+
+### 4. Environmental Monitoring (SDG-11.6)
+**IoT sensors** monitor air quality, water pollution, and noise levels in real time. Data drives pollution control policies and environment protection strategies.
+
+### 5. Healthcare and Safety
+Telemedicine platforms, digital health records, and emergency alert systems improve public health and disaster response.
+
+### 6. Urban Resilience (SDG-11.b)
+Flood forecasting systems, **early warning apps**, and disaster management platforms minimize loss of life and property during emergencies.
+
+### 7. Economic Growth
+ICT infrastructure attracts tech industries, startups, and **IT hubs** — generating employment and boosting city economies.
+
+## LIMITATIONS OF ICT
+- High **implementation cost** — barrier for smaller cities
+- **Cybersecurity risks** — smart systems are vulnerable to attacks
+- **Digital divide** — unequal access creates new inequalities
+- Dependence on reliable internet and electricity
+
+[EXAMPLE]
+India's **DigiLocker**, **UMANG app**, and **Smart Cities Mission** digital command centers are ICT tools improving governance and services. **Bengaluru's** BTMS (Bus Terminal Management System) uses ICT for real-time fleet tracking.
+
+## CONCLUSION
+**ICT** is the most powerful enabler of smart and sustainable cities. However, equitable access, strong cybersecurity, and affordable deployment are essential to ensure ICT benefits all citizens, aligning with **SDG-11** and **SDG-10** (Reduced Inequalities).`
+},
+{
+  q: "Define Urban Resilience. Explain Urban Threats and how cities can improve resilience using technology.",
+  keywords: ["urban resilience","threats","technology","disaster","climate","resilient"],
+  a: `## DEFINITION
+**Urban Resilience** is the ability of a city to withstand, adapt to, and recover quickly from shocks and stresses — natural disasters, climate change, pandemics, and cyber-attacks — while maintaining essential functions and services for its citizens.
+
+## INTRODUCTION
+A resilient city can **"bounce back"** after any crisis. As cities grow and climate change intensifies, resilience is critical for sustainable urban development. **SDG-11.b** specifically targets increasing cities adopting integrated resilience strategies.
+
+## VARIOUS URBAN THREATS
+### 1. Climate-Related Threats
+**Floods**, cyclones, heat waves, droughts. Example: Urban flooding in Chennai and Mumbai from heavy rainfall and poor drainage.
+### 2. Environmental Threats
+Air and water pollution, resource scarcity, loss of green cover — deteriorating public health and quality of life.
+### 3. Health Threats
+**Pandemics** (COVID-19), infectious disease outbreaks disrupting healthcare systems and economic activity.
+### 4. Infrastructure Failures
+Power outages, water supply breakdowns, transport collapses due to overburdened and aging systems.
+### 5. Cyber Threats
+**Smart city** digital systems are vulnerable to cyber-attacks disrupting electricity grids, traffic signals, and emergency services.
+### 6. Social Threats
+Inequality, unemployment, and crime that destabilize communities and reduce social cohesion.
+
+## IMPROVING RESILIENCE USING TECHNOLOGY
+### 7. Early Warning Systems
+**Satellite data**, weather forecasting, and IoT sensors predict floods and storms in advance. Mobile alerts warn citizens before disasters strike.
+### 8. Smart Infrastructure
+**Smart grids** and IoT-based water systems detect faults automatically and prevent large-scale failures.
+### 9. AI and Data Analytics
+**AI models** predict disaster risks, optimize evacuation routes, and allocate emergency resources efficiently.
+### 10. Digital Governance
+Online platforms ensure continuity of essential services during crises — as seen during **COVID-19 lockdowns**.
+### 11. Cybersecurity Systems
+Strong security frameworks protect critical digital infrastructure from attacks and data breaches.
+
+[EXAMPLE]
+**Surat city** (Gujarat) transformed from India's most flood-affected city to a **resilience model** — installing flood early warning systems, upgrading drainage, and using GIS mapping to identify risk zones. Now cited by UNDRR as a resilience success.
+
+## CONCLUSION
+**Urban resilience** is not just about disaster recovery — it is about building cities that anticipate and adapt to change. Technology-driven resilience, combined with good governance, is central to achieving **SDG-11.b** and ensuring sustainable, safe urban futures.`
+},
+{
+  q: "Analyze importance of planning for Sustainable Development in Urban Areas. Explain key planning principles.",
+  keywords: ["planning","sustainable development","urban","principles","importance","zoning"],
+  a: `## DEFINITION
+**Sustainable Urban Planning** is the process of designing and managing city growth in a way that balances environmental protection, economic development, and social equity to ensure long-term livability for present and future generations.
+
+## INTRODUCTION
+Rapid, unplanned urbanization causes congestion, pollution, housing shortages, and resource scarcity. **SDG-11** calls for inclusive, safe, and sustainable cities — achievable only through systematic, forward-looking urban planning.
+
+## IMPORTANCE OF SUSTAINABLE URBAN PLANNING
+### 1. Efficient Resource Use
+Proper planning ensures optimal use of **land, water, and energy** — reducing wastage through zoning regulations.
+### 2. Environmental Protection
+Planning preserves **green spaces**, manages waste streams, and controls pollution through designated industrial zones.
+### 3. Improved Quality of Life
+Planned cities provide better access to **housing, healthcare, education, and transportation** — reducing daily stress.
+### 4. Disaster Risk Reduction (SDG-11.5)
+Avoids construction in **flood-prone zones**; proper drainage systems reduce urban flooding during heavy rains.
+### 5. Long-Term Economic Stability
+Sustainable planning attracts **investment**, supports business growth, and ensures productivity while maintaining environmental quality.
+### 6. Social Equity (SDG-11.1)
+Inclusive planning ensures **affordable housing** and equal access to services for all income groups, reducing inequality.
+
+## KEY URBAN PLANNING PRINCIPLES
+### 7. Mixed Land Use
+Residential, commercial, and institutional zones are placed near each other — reduces travel distance and **traffic congestion**.
+### 8. Transit-Oriented Development
+Cities planned around **public transport** nodes (metro, bus) reduce private vehicle dependency and pollution.
+### 9. Green Spaces and Conservation
+Parks, urban forests, and water bodies are protected — improving **air quality** and climate resilience.
+### 10. Compact City Design
+High-density, walkable neighborhoods reduce **urban sprawl** and promote efficient resource use.
+### 11. Climate-Smart Planning
+**Rainwater harvesting**, renewable energy integration, and heat-resistant building design.
+
+[EXAMPLE]
+**Chandigarh** (India) — designed by Le Corbusier — is India's best planned city with systematic sectors, green belts, and separated traffic. **Delhi Master Plan 2041** incorporates transit-oriented development and climate resilience.
+
+## CONCLUSION
+Sustainable urban planning is the foundation of **SDG-11**. Cities that invest in forward-looking, inclusive master plans reduce costs, improve liveability, and build **economic and environmental resilience** for generations to come.`
+},
+{
+  q: "Critically examine challenges faced by Mega Cities in achieving sustainability. Suggest solutions.",
+  keywords: ["mega cities","challenges","sustainability","solutions","overpopulation","pollution"],
+  a: `## DEFINITION
+**Mega cities** are urban agglomerations with a population exceeding **10 million**. Examples: Tokyo (37M), Delhi (32M), Shanghai (26M), Mumbai (21M). While economic powerhouses, their size creates extreme sustainability pressures.
+
+## INTRODUCTION
+Mega cities contribute over 15% of global GDP but also generate disproportionate pollution, inequality, and resource consumption. Achieving **SDG-11** in mega cities is among the greatest urban challenges of the 21st century.
+
+## CHALLENGES FACED BY MEGA CITIES
+### 1. Overpopulation and Infrastructure Pressure
+Rapid growth strains **housing, roads, water supply, electricity, and healthcare** beyond capacity. Traffic gridlock is a daily reality.
+### 2. Housing Shortage and Slums (SDG-11.1)
+High in-migration creates **informal settlements** with poor sanitation, overcrowding, and no legal land tenure. Delhi has 1,797 slum clusters.
+### 3. Environmental Pollution (SDG-11.6)
+Vehicle and industrial emissions cause **severe air pollution**. Delhi's AQI regularly crosses hazardous levels in winter months.
+### 4. Water and Resource Scarcity
+Large populations exhaust water, food, and energy resources. **Chennai** faced near-total water crisis in 2019.
+### 5. Climate Vulnerability (SDG-11.5)
+Floods, heat waves, and sea-level rise threaten mega cities. **Mumbai** floods annually due to inadequate drainage.
+### 6. Social Inequality
+Wide income gaps create unequal access to education, healthcare, and digital services — undermining **inclusive development**.
+### 7. Governance Complexity
+Managing multiple overlapping local bodies in a mega city causes **coordination failures** in service delivery.
+
+## SUITABLE SOLUTIONS
+### 8. Smart Urban Planning
+**Satellite towns** and mixed land use reduce overcrowding. Master plans must control expansion limits.
+### 9. Sustainable Transportation
+**Metro systems, electric vehicles**, and cycle lanes reduce traffic and air pollution (**SDG-11.2**).
+### 10. Technology-Driven Governance
+**IoT monitoring, AI traffic control**, and digital grievance systems improve efficiency and transparency.
+### 11. Affordable Housing (SDG-11.1)
+**PMAY** (Pradhan Mantri Awas Yojana) and slum redevelopment programs provide dignified housing.
+### 12. Renewable Energy and Waste Management
+**Solar panels, smart grids**, waste segregation, and recycling reduce environmental footprint.
+
+[EXAMPLE]
+**Mumbai's Dharavi redevelopment project** and **Delhi's DUSIB** housing schemes aim to relocate slum dwellers to formal housing. Delhi Metro (400+ km) has reduced 650,000+ vehicle trips daily, cutting pollution significantly.
+
+## CONCLUSION
+**Mega cities** must adopt integrated, technology-driven, socially inclusive solutions to achieve sustainability. Without urgent action, they risk becoming epicenters of inequality and environmental collapse — making **SDG-11** their most critical governance challenge.`
+},
+{
+  q: "Discuss why Sustainable Cities are essential for Economic Growth, Environmental Protection, and Social Well-Being.",
+  keywords: ["sustainable cities","essential","economic growth","environmental","social well-being","importance"],
+  a: `## DEFINITION
+**Sustainable cities** are urban areas that balance **economic development, environmental protection, and social equity** to meet present needs without compromising future generations — the core principle of **SDG-11**.
+
+## INTRODUCTION
+Over 55% of the world's population lives in cities, and cities contribute over 80% of global GDP. However, cities also generate 70% of global carbon emissions. Making cities sustainable is therefore essential for global economic stability, environmental survival, and human well-being.
+
+## 1. IMPORTANCE FOR ECONOMIC GROWTH
+### a) Increased Productivity
+**Efficient infrastructure** — transport, electricity, digital networks — reduces business costs and travel time, improving workforce productivity and competitiveness.
+### b) Attraction of Investment
+Clean environments, **smart infrastructure**, and good governance attract domestic and foreign investment. IT parks and industrial corridors thrive in well-planned cities.
+### c) Resource Efficiency
+**Energy-efficient buildings** and renewable systems reduce operational costs, improving long-term economic stability and reducing energy import bills.
+### d) Employment Generation
+**Green industries** — solar, waste recycling, sustainable construction — create millions of new employment opportunities.
+
+## 2. IMPORTANCE FOR ENVIRONMENTAL PROTECTION
+### e) Reduced Pollution (SDG-11.6)
+**Public transport, renewable energy, and waste recycling** cut air, water, and soil pollution — protecting ecosystems and public health.
+### f) Conservation of Resources
+**Rainwater harvesting, green buildings, and smart water systems** conserve critical natural resources for future generations.
+### g) Climate Change Mitigation
+Lower carbon emissions from sustainable urban practices directly reduce global warming and its catastrophic consequences.
+
+## 3. IMPORTANCE FOR SOCIAL WELL-BEING
+### h) Improved Quality of Life (SDG-11.1)
+Access to **clean water, healthcare, education, and affordable housing** improves living standards for all citizens.
+### i) Social Equity and Inclusion
+**Inclusive infrastructure** and affordable housing reduce inequality, ensuring vulnerable groups are not left behind (**SDG-10**).
+### j) Safety and Resilience (SDG-11.b)
+**Smart governance and disaster preparedness** enhance urban safety and reduce risks during emergencies and natural disasters.
+
+[EXAMPLE]
+**Surat** (Gujarat) transformed from a plague-hit city to India's cleanest and most sustainable city through systematic waste management, flood control, and smart governance — boosting both its economy and quality of life.
+
+## CONCLUSION
+**Sustainable cities** are not a luxury — they are an economic and human necessity. They serve as engines of inclusive growth, guardians of natural resources, and foundations of social justice, making them central to achieving **SDG-11** and the entire **2030 Agenda for Sustainable Development**.`
+},
+{
+  q: "Justify: Smart Cities are Software-Driven Cities. Explain role of CSE professionals in sustainable urban development.",
+  keywords: ["smart cities","software","CSE","computer science","professionals","software-driven","engineers"],
+  a: `## DEFINITION
+A **smart city** uses digital technologies — **IoT, AI, cloud computing, big data, and mobile applications** — to manage infrastructure, resources, and public services efficiently. Since all these systems run on software, smart cities are rightly called **software-driven cities**.
+
+## INTRODUCTION
+Every function of a smart city — from traffic signals to water meters — depends on code, algorithms, and data pipelines. **CSE (Computer Science and Engineering) professionals** are therefore the architects and builders of sustainable urban futures, directly contributing to **SDG-11**.
+
+## WHY SMART CITIES ARE SOFTWARE-DRIVEN
+Software powers every layer of a smart city:
+- **IoT sensors** collect real-time city data (traffic, water, air)
+- **Cloud platforms** store and process millions of data points
+- **AI algorithms** make autonomous decisions and predictions
+- **Mobile apps** deliver services directly to citizens
+- **Cybersecurity systems** protect all digital city infrastructure
+
+Without software, no smart city system can function — traffic signals stay dumb, pipes leak undetected, power grids cannot self-balance.
+
+## ROLE OF CSE PROFESSIONALS
+### 1. Smart Infrastructure Development
+Design and build **smart traffic management, smart grids, and IoT-based water monitoring** systems that reduce waste and pollution.
+### 2. AI and Data Analytics (SDG-11.b)
+Build **AI models** to predict floods, optimize traffic flow, monitor air quality, and allocate emergency resources.
+### 3. Cloud and IoT Integration
+Engineer platforms connecting thousands of sensors, devices, and control systems across a city.
+### 4. E-Governance Solutions
+Develop **online service portals, digital payment systems**, and public grievance platforms — improving transparency and social inclusion.
+### 5. Cybersecurity
+Protect critical city infrastructure from **cyber-attacks** that could disable electricity, water, or emergency systems.
+### 6. Green Computing
+Promote **energy-efficient algorithms**, green data centers, and cloud optimization — reducing digital carbon footprint.
+### 7. Accessibility and Inclusion
+Build **apps and platforms** that make city services accessible to the elderly, disabled, and non-English speakers.
+
+[EXAMPLE]
+Under **Smart Cities Mission**, Pune's **Integrated Command & Control Center (ICCC)** — built by CSE professionals — monitors 1,200+ cameras, manages traffic, controls streetlights, and handles emergency response from one software dashboard.
+
+[DIAGRAM]
+CSE Professionals Build:
+IoT Sensors → Data Pipeline → AI Engine → City Dashboard
+     ↓              ↓             ↓             ↓
+  Real Data    Cloud Storage  Smart Decisions  Citizen Apps
+
+## CONCLUSION
+**Smart cities are indeed software-driven cities** — and **CSE professionals** are their most essential builders. From designing intelligent traffic systems to securing digital governance platforms, their role is central to creating the **sustainable, efficient, and resilient cities** that **SDG-11** envisions.`
+}
+];
+
+// ══════════════════════════════════════════════════════
+//  RENDER ENGINE
+// ══════════════════════════════════════════════════════
+function renderAnswer(raw, containerId, pageEstId) {
+  const container = document.getElementById(containerId);
+  const lines = raw.split('\n');
+  let html = '';
+  let inDiagram = false, diagLines = [];
+  let inExample = false, exText = '';
+  let inConclusion = false;
+
+  const fe = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const fmt = s => {
+    s = fe(s);
+    return s.replace(/\*\*(.+?)\*\*/g, (_,w) =>
+      /SDG[-\s]\d/i.test(w) ? `<span class="a-sdg">${w}</span>` : `<span class="a-kw">${w}</span>`
+    );
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i], t = line.trim();
+    if (inDiagram) {
+      if (t.startsWith('##') || t.startsWith('###') || t.startsWith('[')) {
+        html += `<div class="a-diagram">${diagLines.join('\n')}</div>`;
+        inDiagram = false; diagLines = [];
+      } else { diagLines.push(fe(line)); continue; }
+    }
+    if (inExample) {
+      if (t === '' || t.startsWith('##') || t.startsWith('###')) {
+        html += `<div class="a-example">📌 ${fmt(exText.trim())}</div>`;
+        inExample = false; exText = '';
+        if (t === '') continue;
+      } else { exText += ' ' + line; continue; }
+    }
+    if (t.startsWith('[DIAGRAM]')) { inDiagram = true; diagLines = []; continue; }
+    if (t.startsWith('[EXAMPLE]')) { inExample = true; exText = ''; continue; }
+    if (t.startsWith('## ')) {
+      const text = t.slice(3).trim();
+      const isConc = text.toLowerCase().includes('conclu');
+      if (inConclusion && !isConc) { html += '</div>'; inConclusion = false; }
+      if (isConc) { html += `<div class="a-conclusion"><p class="a-section">${fmt(text)}</p>`; inConclusion = true; }
+      else html += `<p class="a-section">${fmt(text)}</p>`;
+      continue;
+    }
+    if (t.startsWith('### ')) { html += `<p class="a-point-head">${fmt(t.slice(4).trim())}</p>`; continue; }
+    if (t.startsWith('- ')) { html += `<ul><li>${fmt(t.slice(2))}</li></ul>`; continue; }
+    if (t === '') continue;
+    html += `<p class="a-body">${fmt(t)}</p>`;
+  }
+  if (inDiagram && diagLines.length) html += `<div class="a-diagram">${diagLines.join('\n')}</div>`;
+  if (inExample && exText) html += `<div class="a-example">📌 ${fmt(exText.trim())}</div>`;
+  if (inConclusion) html += '</div>';
+  container.innerHTML = html;
+
+  const words = raw.replace(/[#*\[\]]/g,'').trim().split(/\s+/).length;
+  const el = document.getElementById(pageEstId);
+  if (el) {
+    const pages = (Math.ceil(Math.round(words*0.85)/9)/28).toFixed(1);
+    const cls = parseFloat(pages) <= 1.4 ? 'page-ok' : 'page-warn';
+    el.innerHTML = `<span class="${cls}">📏 ~${words} words — estimated <strong>${pages} notebook pages</strong> when handwritten</span>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  BROWSE MODE
+// ══════════════════════════════════════════════════════
+function initBrowse() {
+  const list = document.getElementById('qList');
+  ANSWERS.forEach((ans, i) => {
+    const div = document.createElement('div');
+    div.className = 'q-item';
+    div.innerHTML = `<div class="q-num">Q${i+1}</div><div class="q-text">${ans.q}</div>`;
+    div.onclick = () => {
+      document.querySelectorAll('.q-item').forEach(el => el.classList.remove('active'));
+      div.classList.add('active');
+      document.getElementById('browsePlaceholder').style.display = 'none';
+      renderAnswer(ans.a, 'browseAnswerInner', 'browsePageEst');
+      document.getElementById('browseAnswerWrap').classList.add('show');
+    };
+    list.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  SEARCH MODE
+// ══════════════════════════════════════════════════════
+function doSearch() {
+  const query = document.getElementById('searchInput').value.toLowerCase().trim();
+  const container = document.getElementById('searchResults');
+  if (!query) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;">Start typing to find matching answers…</div>';
+    return;
+  }
+  const words = query.split(/\s+/);
+  const scored = ANSWERS.map((ans, i) => {
+    let score = 0;
+    const haystack = (ans.q + ' ' + ans.keywords.join(' ')).toLowerCase();
+    words.forEach(w => { if (haystack.includes(w)) score += 2; });
+    ans.keywords.forEach(k => { if (query.includes(k.toLowerCase())) score += 3; });
+    return { ans, i, score };
+  }).filter(x => x.score > 0).sort((a,b) => b.score - a.score);
+
+  if (!scored.length) {
+    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:13px;">No match found. Try different keywords.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  scored.forEach(({ans, i}) => {
+    const div = document.createElement('div');
+    div.className = 'sr-item';
+    div.innerHTML = `<span class="sr-score">Q${i+1}</span><div class="sr-text">${ans.q}</div>`;
+    div.onclick = () => {
+      document.getElementById('searchPlaceholder').style.display = 'none';
+      renderAnswer(ans.a, 'searchAnswerInner', 'searchPageEst');
+      document.getElementById('searchAnswerWrap').classList.add('show');
+    };
+    container.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  COMPRESS MODE (client-side, no AI)
+// ══════════════════════════════════════════════════════
+function updateCWC() {
+  const v = document.getElementById('compressInput').value;
+  const c = v.trim() ? v.trim().split(/\s+/).length : 0;
+  document.getElementById('compressWordCount').textContent = c + ' words';
+}
+document.getElementById('compressInput').addEventListener('input', updateCWC);
+
+function doCompress() {
+  const input = document.getElementById('compressInput').value.trim();
+  if (!input) { showErr('errCompress','Please paste your notes first.'); return; }
+
+  // Smart client-side compression
+  const lines = input.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const seen = new Set();
+  const output = [];
+
+  // Detect heading-like lines and content
+  const isHeading = l => /^[#*]|^\d+[\.\)]\s+[A-Z]|^[A-Z][A-Z\s]{3,}$/.test(l.trim());
+  const isBullet = l => /^[-•*→]\s/.test(l.trim()) || /^\d+[\.\)]\s/.test(l.trim());
+
+  // Auto-detect topic from first heading
+  let topic = '';
+  for (const l of lines) {
+    if (l.length > 10 && l.length < 100) { topic = l.replace(/^[#*\d.\s]+/,'').trim(); break; }
+  }
+
+  output.push(`## ${topic.toUpperCase() || 'COMPRESSED NOTES'}`);
+  output.push('');
+
+  let currentSection = '';
+  let pointCount = 0;
+
+  for (const line of lines) {
+    const clean = line.replace(/^[#*\-•→\d.\)]+\s*/,'').trim();
+    if (!clean || clean.length < 5) continue;
+
+    // Deduplicate similar lines
+    const key = clean.toLowerCase().slice(0,40);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (isHeading(line) && clean.length < 80) {
+      output.push(`\n### ${clean}`);
+      currentSection = clean;
+    } else if (isBullet(line) || clean.length < 120) {
+      output.push(`- **${clean.split(' ').slice(0,3).join(' ')}**: ${clean.split(' ').slice(3).join(' ')}`);
+      pointCount++;
+    } else {
+      // Long sentence — extract first sentence only
+      const firstSentence = clean.split(/[.!?]/)[0].trim();
+      if (firstSentence.length > 15) {
+        output.push(`- ${firstSentence}.`);
+        pointCount++;
+      }
+    }
+    if (pointCount >= 20) break; // Keep it to 1 page
+  }
+
+  // Try to find an India example from the input
+  const indiaMatch = input.match(/[^.]*(?:India|Mumbai|Delhi|Bengaluru|Chennai|Surat|AMRUT|Smart Cities|PMAY|metro)[^.]*/i);
+  if (indiaMatch) {
+    output.push('\n[EXAMPLE]');
+    output.push(indiaMatch[0].trim().slice(0,200));
+  }
+
+  output.push('\n## CONCLUSION');
+  output.push(`**${topic || 'This topic'}** is central to **SDG-11** — Sustainable Cities and Communities. Proper planning, smart technology, and inclusive policies are key to achieving sustainable urban development.`);
+
+  const compressed = output.join('\n');
+  document.getElementById('compressPlaceholder').style.display = 'none';
+  renderAnswer(compressed, 'compressAnswerInner', 'compressPageEst');
+  document.getElementById('compressAnswerWrap').classList.add('show');
+}
+
+// ══════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════
+function switchMode(mode) {
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${mode}`).classList.add('active');
+}
+
+function copyEl(id) {
+  navigator.clipboard.writeText(document.getElementById(id).innerText).then(() => {
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = '⚠ ' + msg;
+  el.classList.add('show');
+}
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+initBrowse();
+</script>
+</body>
+</html>
