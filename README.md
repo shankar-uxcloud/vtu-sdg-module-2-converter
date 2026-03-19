@@ -40,4 +40,4 @@ This project is built to:
 
 ## 👨‍💻 Author
 
-Shankar Sourav
+Shankar
