@@ -31,11 +31,6 @@ This project is built to:
 - Save time during preparation  
 - Provide structured and easy-to-understand content  
 
----
-
-## 📸 Screenshot
-(module-2.png)
-
 --
 
 ## 👨‍💻 Author
